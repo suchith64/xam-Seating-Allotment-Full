@@ -17,6 +17,7 @@ app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Database Connection Pool (Supports both local XAMPP and Cloud MySQL)
+// Database Connection Pool
 const pool = mysql.createPool({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT || 3306,
@@ -28,6 +29,9 @@ const pool = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0
 });
+
+// Health Check (works even before database is connected)
+app.get('/', (req, res) => res.send('Exam Seating API is running...'));
 
 // Test Database Connection
 pool.getConnection()
