@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "exam-seating-backend": {
+      "root": "exam-seating-backend",
+      "framework": "express"
+    },
+    "exam-seating-frontend": {
+      "root": "exam-seating-frontend",
+      "framework": "vite"
+    }
+  },
+  "rewrites": []
+}
