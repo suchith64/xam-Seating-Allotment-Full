@@ -5,6 +5,7 @@ const mysql = require('mysql2/promise');
 const multer = require('multer');
 const { Readable } = require('stream');
 const csv = require('csv-parser');
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -15,12 +16,14 @@ app.use(express.json());
 // Set up Multer for handling CSV file uploads in memory
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Database Connection Pool
+// Database Connection Pool (Supports both local XAMPP and Cloud MySQL)
 const pool = mysql.createPool({
     host: process.env.DB_HOST,
+    port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -29,13 +32,12 @@ const pool = mysql.createPool({
 // Test Database Connection
 pool.getConnection()
     .then((conn) => {
-        console.log('✅ Connected to XAMPP MySQL Database');
+        console.log('✅ Connected to MySQL Database');
         conn.release();
     })
     .catch((err) => {
         console.error('❌ Database connection failed:', err.message);
     });
-
 
 // ==========================================
 // API ENDPOINTS (Routes)
@@ -52,7 +54,7 @@ app.post('/api/rooms/upload', upload.single('file'), (req, res) => {
         .on('data', (data) => results.push(data))
         .on('end', async () => {
             try {
-                await pool.query('DELETE FROM rooms'); 
+                await pool.query('DELETE FROM rooms');
                 for (let room of results) {
                     await pool.query(
                         'INSERT INTO rooms (room_number, capacity, rows_count, cols_count) VALUES (?, ?, ?, ?)',
@@ -166,23 +168,24 @@ app.post('/api/allocations/generate', async (req, res) => {
         res.status(500).json({ error: 'Allocation failed', details: error.message });
     }
 });
-// 4. Fetch ALL allocations for the Visual Map (FIXED DB TYPO & JOINED TABLES)
+
+// 4. Fetch ALL allocations for the Visual Map
 app.get('/api/allocations/all', async (req, res) => {
-  try {
-    const query = `
-        SELECT 
-            s.full_name, s.roll_number, s.branch, 
-            r.room_number, a.seat_code, a.subject_name, a.exam_date 
-        FROM allocations a
-        JOIN students s ON a.student_id = s.id
-        JOIN rooms r ON a.room_id = r.id
-        ORDER BY r.room_number, a.seat_code
-    `;
-    const [rows] = await pool.query(query); // Fixed 'db' to 'pool'
-    res.json(rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    try {
+        const query = `
+            SELECT 
+                s.full_name, s.roll_number, s.branch, 
+                r.room_number, a.seat_code, a.subject_name, a.exam_date 
+            FROM allocations a
+            JOIN students s ON a.student_id = s.id
+            JOIN rooms r ON a.room_id = r.id
+            ORDER BY r.room_number, a.seat_code
+        `;
+        const [rows] = await pool.query(query);
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // 5. Student Search Endpoint
@@ -206,8 +209,13 @@ app.get('/api/allocations/search', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'Database error', details: error.message });
     }
-}); 
-
-app.listen(port, () => {
-    console.log(`🚀 Server running on http://localhost:${port}`);
 });
+
+// Run locally with app.listen(), export app for Vercel serverless
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(port, () => {
+        console.log(`🚀 Server running on http://localhost:${port}`);
+    });
+}
+
+module.exports = app;
